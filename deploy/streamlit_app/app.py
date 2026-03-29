@@ -36,13 +36,15 @@ from smart_parking.service import get_service
 
 
 st.set_page_config(
-    page_title="Smart Parking Cloud Console",
+    page_title="Advanced Smart Parking Command Center",
     page_icon="P",
     layout="wide",
 )
 
-st.title("Smart Parking Cloud Console")
-st.caption("Cloud-optimized review build with lighter startup and mobile-safer rendering.")
+st.title("Advanced Smart Parking Command Center")
+st.caption(
+    "Forecasting, recommendation ranking, spatial intelligence, anomaly detection, and decision support for urban parking."
+)
 
 
 @st.cache_data
@@ -130,11 +132,20 @@ def live_observations_frame(service, limit: int = 25) -> pd.DataFrame:
 
 section = st.sidebar.radio(
     "Section",
-    ["Overview", "Live Demo", "Ops Wall", "Forecast Lab", "Recommendations", "Risk & Spatial"],
+    [
+        "Overview",
+        "Live Demo",
+        "Ops Wall",
+        "Forecast Lab",
+        "Recommendations",
+        "Risk & Anomalies",
+        "Spatial Intelligence",
+        "SQL Snapshot",
+    ],
 )
 system_catalog = load_system_catalog()
 selected_system = st.sidebar.selectbox("Parking location", system_catalog)
-render_location_chart = st.sidebar.toggle("Render geo chart", value=False)
+render_map_charts = st.sidebar.toggle("Render map charts", value=True)
 recommendation_objective = st.sidebar.selectbox(
     "Recommendation objective",
     ["Balanced", "Maximum Availability", "Lowest Risk", "Lowest Congestion"],
@@ -209,6 +220,8 @@ elif section == "Live Demo":
     metric_col3.metric("Critical systems", critical_count)
     metric_col4.metric("Mean live utilization", f"{live_mean_utilization:.2%}")
 
+    st.caption("Trigger scenario stress, inject custom incidents, and show live recommendation changes during your demo.")
+
     action_col1, action_col2, action_col3 = st.columns([1.1, 1.1, 0.8])
     with action_col1:
         scenario_catalog = service.demo_scenarios()
@@ -216,6 +229,7 @@ elif section == "Live Demo":
         with st.form("cloud_run_demo_scenario_form"):
             selected_scenario_label = st.selectbox("Scenario", list(scenario_options.keys()))
             selected_scenario = scenario_options[selected_scenario_label]
+            st.caption(selected_scenario["description"])
             scenario_steps = st.slider("Scenario steps", min_value=1, max_value=6, value=int(selected_scenario["recommended_steps"]))
             reset_before_run = st.checkbox("Reset before run", value=True)
             run_scenario = st.form_submit_button("Run Scenario", type="primary", use_container_width=True)
@@ -234,11 +248,18 @@ elif section == "Live Demo":
         with st.form("cloud_run_demo_playbook_form"):
             selected_playbook_label = st.selectbox("Guided demo", list(playbook_options.keys()))
             selected_playbook = playbook_options[selected_playbook_label]
+            st.caption(selected_playbook["description"])
+            playbook_stage_lines = [
+                f"{idx + 1}. {stage['scenario_name']} x{stage['steps']}: {stage['narrative']}"
+                for idx, stage in enumerate(selected_playbook["stages"])
+            ]
+            st.code("\n".join(playbook_stage_lines), language="text")
+            reset_before_playbook = st.checkbox("Reset before guided demo", value=True)
             run_playbook = st.form_submit_button("Run Guided Demo", type="primary", use_container_width=True)
         if run_playbook:
             result = service.run_demo_playbook(
                 playbook_name=selected_playbook["name"],
-                reset_first=True,
+                reset_first=reset_before_playbook,
             )
             st.session_state["cloud_last_demo_action"] = f"Guided demo executed: {selected_playbook['title']}"
             st.session_state["cloud_last_demo_result"] = result
@@ -289,6 +310,100 @@ elif section == "Live Demo":
     if st.session_state["cloud_last_demo_action"]:
         st.info(st.session_state["cloud_last_demo_action"])
 
+    last_demo_result = st.session_state.get("cloud_last_demo_result")
+    if isinstance(last_demo_result, dict) and "stages" in last_demo_result:
+        stage_summary_df = pd.DataFrame(
+            [
+                {
+                    "stage": item["stage_number"],
+                    "scenario": item["scenario_title"],
+                    "steps": item["steps"],
+                    "events_executed": item["events_executed"],
+                    "delta_mean_utilization": item["delta_mean_utilization"],
+                    "delta_critical_systems": item["delta_critical_systems"],
+                    "top_recommendation_after": item["top_recommendation_after"]["system_code"]
+                    if item["top_recommendation_after"]
+                    else None,
+                }
+                for item in last_demo_result["stages"]
+            ]
+        )
+        st.dataframe(stage_summary_df, width="stretch")
+        with st.expander("Guided demo narration", expanded=True):
+            for item in last_demo_result["stages"]:
+                st.markdown(
+                    f"**Stage {item['stage_number']}: {item['scenario_title']}**  \n"
+                    f"{item['narrative']}  \n"
+                    f"Events executed: `{item['events_executed']}` | "
+                    f"Mean utilization delta: `{item['delta_mean_utilization']:+.4f}` | "
+                    f"Critical systems delta: `{item['delta_critical_systems']:+d}`"
+                )
+    elif isinstance(last_demo_result, dict) and "step_summaries" in last_demo_result:
+        step_summary_df = pd.DataFrame(
+            [
+                {
+                    "step": item["step"],
+                    "events_applied": len(item["events_applied"]),
+                    "portfolio_mean_utilization": item["portfolio_mean_utilization"],
+                    "critical_systems": item["critical_systems"],
+                    "top_recommendation": item["top_recommendation"]["system_code"],
+                    "most_congested_system": item["most_congested_system"]["system_code"],
+                }
+                for item in last_demo_result["step_summaries"]
+            ]
+        )
+        st.dataframe(step_summary_df, width="stretch")
+    elif last_demo_result:
+        with st.expander("Latest live action payload", expanded=False):
+            st.json(last_demo_result)
+
+    viz_col1, viz_col2 = st.columns(2)
+    with viz_col1:
+        if not risk_counts.empty:
+            risk_chart = px.pie(
+                risk_counts,
+                names="risk_band",
+                values="count",
+                hole=0.55,
+                title="Live risk distribution",
+            )
+            st.plotly_chart(risk_chart, width="stretch")
+        else:
+            st.info("No live risk data available yet.")
+
+    with viz_col2:
+        if render_map_charts and not live_recommendations_df.empty:
+            live_map = px.scatter_map(
+                live_recommendations_df,
+                lat="latitude",
+                lon="longitude",
+                color="risk_band",
+                size="predicted_available_spaces_1h",
+                hover_name="system_code",
+                hover_data={
+                    "recommendation_rank": True,
+                    "predicted_utilization_1h": ":.2f",
+                    "predicted_available_spaces_1h": True,
+                },
+                zoom=11,
+                height=430,
+                title="Live recommendation board",
+            )
+            st.plotly_chart(live_map, width="stretch")
+        elif not live_recommendations_df.empty:
+            fallback_geo = px.scatter(
+                live_recommendations_df,
+                x="longitude",
+                y="latitude",
+                color="risk_band",
+                size="predicted_available_spaces_1h",
+                hover_name="system_code",
+                title="Live recommendation board",
+            )
+            st.plotly_chart(fallback_geo, width="stretch")
+        else:
+            st.info("Live recommendations will appear here after the board loads.")
+
     st.subheader("Current live recommendation board")
     if not live_recommendations_df.empty:
         recommendation_columns = [
@@ -304,28 +419,6 @@ elif section == "Live Demo":
     else:
         st.info("No live recommendations are available.")
 
-    if not risk_counts.empty:
-        risk_chart = px.pie(
-            risk_counts,
-            names="risk_band",
-            values="count",
-            hole=0.55,
-            title="Live risk distribution",
-        )
-        st.plotly_chart(risk_chart, width="stretch")
-
-    if render_location_chart and not live_recommendations_df.empty:
-        geo_chart = px.scatter(
-            live_recommendations_df,
-            x="longitude",
-            y="latitude",
-            color="risk_band",
-            size="predicted_available_spaces_1h",
-            hover_name="system_code",
-            title="Live systems by location",
-        )
-        st.plotly_chart(geo_chart, width="stretch")
-
     if not live_observations_df.empty:
         st.subheader("Recent live observations")
         observation_columns = [
@@ -340,6 +433,8 @@ elif section == "Live Demo":
         ]
         available_columns = [column for column in observation_columns if column in live_observations_df.columns]
         st.dataframe(live_observations_df[available_columns], width="stretch")
+    else:
+        st.info("No live observations yet. Run a scenario or inject an incident to populate this table.")
 
 
 elif section == "Ops Wall":
@@ -349,6 +444,10 @@ elif section == "Ops Wall":
         st.error("The cloud runtime failed while loading ops services.")
         st.exception(exc)
         st.stop()
+
+    st.caption("Live operational health, alerting, drift tracking, model quality, and retraining status.")
+    if st.button("Refresh Ops Wall", key="cloud_refresh_ops_wall", use_container_width=True):
+        st.rerun()
 
     ops_summary = service.ops_summary()
     live_snapshot = ops_summary["live_snapshot"]
@@ -363,6 +462,37 @@ elif section == "Ops Wall":
     ops_metric_col4.metric("Drift Severity", drift_overview["severity"].title())
     ops_metric_col5.metric("Latest Retrain", str(retrain_status.get("status", "not_run")).title())
 
+    ops_health_col1, ops_health_col2 = st.columns(2)
+    with ops_health_col1:
+        severity_counts_df = pd.DataFrame(
+            [{"severity": key, "count": value} for key, value in ops_summary["alert_counts"].items()]
+        )
+        severity_chart = px.bar(
+            severity_counts_df,
+            x="severity",
+            y="count",
+            color="severity",
+            color_discrete_map={"critical": "#c92a2a", "warning": "#f08c00", "info": "#1971c2"},
+            title="Operational alert mix",
+        )
+        st.plotly_chart(severity_chart, width="stretch")
+
+    with ops_health_col2:
+        drift_features_df = pd.DataFrame(drift_overview["top_features"])
+        if not drift_features_df.empty:
+            drift_chart = px.bar(
+                drift_features_df.sort_values("psi", ascending=True),
+                x="psi",
+                y="feature",
+                color="drift_level",
+                orientation="h",
+                title="Top monitored drift features",
+                color_discrete_map={"stable": "#2b8a3e", "warning": "#f08c00", "critical": "#c92a2a"},
+            )
+            st.plotly_chart(drift_chart, width="stretch")
+        else:
+            st.info("No drift data available.")
+
     st.subheader("Priority alerts")
     for alert in ops_summary["alerts"]:
         message = f"{alert['title']}: {alert['message']} Action: {alert['recommended_action']}"
@@ -373,25 +503,41 @@ elif section == "Ops Wall":
         else:
             st.info(message)
 
-    severity_counts_df = pd.DataFrame(
-        [{"severity": key, "count": value} for key, value in ops_summary["alert_counts"].items()]
-    )
-    severity_chart = px.bar(
-        severity_counts_df,
-        x="severity",
-        y="count",
-        color="severity",
-        color_discrete_map={"critical": "#c92a2a", "warning": "#f08c00", "info": "#1971c2"},
-        title="Operational alert mix",
-    )
-    st.plotly_chart(severity_chart, width="stretch")
+    st.subheader("Demo talking points")
+    st.markdown("\n".join(f"- {point}" for point in ops_summary["talking_points"]))
 
-    st.subheader("Critical watchlist")
-    st.dataframe(pd.DataFrame(ops_summary["critical_watchlist"]), width="stretch")
-    st.subheader("Recommended alternatives")
-    st.dataframe(pd.DataFrame(ops_summary["recommended_alternatives"]), width="stretch")
-    st.subheader("Recent activity")
-    st.dataframe(pd.DataFrame(ops_summary["recent_activity"]), width="stretch")
+    ops_data_col1, ops_data_col2 = st.columns(2)
+    with ops_data_col1:
+        st.markdown("**Critical Watchlist**")
+        st.dataframe(pd.DataFrame(ops_summary["critical_watchlist"]), width="stretch")
+        st.markdown("**Recommended Alternatives**")
+        st.dataframe(pd.DataFrame(ops_summary["recommended_alternatives"]), width="stretch")
+
+    with ops_data_col2:
+        st.markdown("**Model Health Snapshot**")
+        model_health_df = pd.DataFrame(
+            [
+                {"metric": "Test RMSE", "value": model_overview["test_rmse"]},
+                {"metric": "Test Band Accuracy", "value": model_overview["test_band_accuracy"]},
+                {"metric": "Rolling Band Accuracy", "value": model_overview["rolling_band_accuracy"]},
+                {"metric": "Features", "value": model_overview["feature_count"]},
+            ]
+        )
+        st.dataframe(model_health_df, width="stretch")
+
+        st.markdown("**Retraining History**")
+        retrain_jobs_df = pd.DataFrame(ops_summary["retrain_jobs"])
+        if not retrain_jobs_df.empty:
+            st.dataframe(retrain_jobs_df, width="stretch")
+        else:
+            st.info("No retraining jobs recorded yet.")
+
+    st.subheader("Recent Operational Activity")
+    recent_activity_df = pd.DataFrame(ops_summary["recent_activity"])
+    if not recent_activity_df.empty:
+        st.dataframe(recent_activity_df, width="stretch")
+    else:
+        st.info("No API or audit activity has been recorded yet.")
 
 
 elif section == "Forecast Lab":
@@ -508,7 +654,20 @@ elif section == "Recommendations":
     ]
     st.dataframe(ranked_recommendations[display_columns], width="stretch")
 
-    if render_location_chart:
+    if render_map_charts:
+        recommendation_map = px.scatter_map(
+            ranked_recommendations,
+            lat="latitude",
+            lon="longitude",
+            color="risk_band",
+            size="predicted_available_spaces_1h",
+            hover_name="system_code",
+            hover_data={"objective_rank": True, "predicted_utilization_1h": ":.2f"},
+            zoom=11,
+            height=520,
+        )
+        st.plotly_chart(recommendation_map, width="stretch")
+    else:
         location_chart = px.scatter(
             ranked_recommendations,
             x="longitude",
@@ -521,11 +680,9 @@ elif section == "Recommendations":
         st.plotly_chart(location_chart, width="stretch")
 
 
-elif section == "Risk & Spatial":
+elif section == "Risk & Anomalies":
     data = load_risk_bundle()
     anomalies_df = data["anomalies"]
-    profiles_df = data["profiles"]
-    clean_df = data["clean"]
 
     anomaly_count = int(anomalies_df["anomaly_flag"].sum()) if "anomaly_flag" in anomalies_df.columns else len(anomalies_df)
     st.metric("Detected anomalies", anomaly_count)
@@ -545,6 +702,12 @@ elif section == "Risk & Spatial":
         width="stretch",
     )
 
+
+elif section == "Spatial Intelligence":
+    data = load_risk_bundle()
+    profiles_df = data["profiles"]
+    clean_df = data["clean"]
+
     cluster_chart = px.scatter(
         profiles_df,
         x="pca_1",
@@ -556,7 +719,20 @@ elif section == "Risk & Spatial":
     )
     st.plotly_chart(cluster_chart, width="stretch")
 
-    if render_location_chart:
+    if render_map_charts:
+        location_scatter = px.scatter_map(
+            profiles_df,
+            lat="latitude",
+            lon="longitude",
+            color="cluster",
+            size="mean_utilization",
+            hover_name="system_code",
+            zoom=11,
+            height=520,
+            title="Spatial parking layout",
+        )
+        st.plotly_chart(location_scatter, width="stretch")
+    else:
         location_scatter = px.scatter(
             profiles_df,
             x="longitude",
@@ -577,4 +753,19 @@ elif section == "Risk & Spatial":
     )
     st.plotly_chart(trend_chart, width="stretch")
 
-    st.caption(f"SQLite analytics database path in the repo: {SQLITE_DB_PATH}")
+
+elif section == "SQL Snapshot":
+    st.subheader("SQLite Project Database")
+    st.code(f"SQLite database path: {SQLITE_DB_PATH}")
+    st.markdown(
+        """
+        Example advanced queries:
+
+        ```sql
+        SELECT * FROM vw_daily_system_summary LIMIT 10;
+        SELECT * FROM vw_peak_periods LIMIT 10;
+        SELECT * FROM vw_recommended_parking LIMIT 10;
+        SELECT * FROM vw_multi_horizon_summary;
+        ```
+        """
+    )
