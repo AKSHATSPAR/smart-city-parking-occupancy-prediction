@@ -86,10 +86,24 @@ class SmartParkingService:
         self.registry = json.loads(MODEL_REGISTRY_PATH.read_text())
         self.neighbor_graph = pd.read_csv(SPATIAL_NEIGHBOR_PATH)
         self.xgb_model = joblib.load(XGB_MODEL_PATH)
-        self.rf_model = joblib.load(RF_MODEL_PATH)
+        self._rf_model = None
+        self.rf_model_error: str | None = None
         self.store = LiveOpsStore()
         self.demo_engine = DemoScenarioEngine(self.recommendations_df, self.neighbor_graph)
         self.store.seed_live_forecasts(self.recommendations_df)
+
+    @property
+    def rf_model(self):
+        if self._rf_model is not None:
+            return self._rf_model
+        if self.rf_model_error is not None:
+            return None
+        try:
+            self._rf_model = joblib.load(RF_MODEL_PATH)
+        except Exception as exc:
+            self.rf_model_error = str(exc)
+            self._rf_model = None
+        return self._rf_model
 
     @staticmethod
     def _records(frame: pd.DataFrame) -> list[dict]:
@@ -113,7 +127,7 @@ class SmartParkingService:
     def ready(self) -> dict:
         checks = {
             "xgboost_model_loaded": self.xgb_model is not None,
-            "random_forest_model_loaded": self.rf_model is not None,
+            "random_forest_model_available": RF_MODEL_PATH.exists(),
             "analytics_db_present": SQLITE_DB_PATH.exists(),
             "live_ops_db_present": LIVE_OPS_DB_PATH.exists(),
             "champion_model_available": bool(self.registry.get("champion_model")),
@@ -689,14 +703,24 @@ class SmartParkingService:
         }
         return scores
 
+    def _ensemble_prediction(self, features: pd.DataFrame) -> tuple[float, float, float]:
+        xgb_prediction = float(self.xgb_model.predict(features)[0])
+        rf_model = self.rf_model
+        rf_prediction = float(rf_model.predict(features)[0]) if rf_model is not None else xgb_prediction
+
+        xgb_weight = float(self.registry["ensemble_weights"].get("xgboost", 1.0))
+        rf_weight = float(self.registry["ensemble_weights"].get("random_forest", 0.0)) if rf_model is not None else 0.0
+        total_weight = xgb_weight + rf_weight
+        if total_weight <= 0:
+            ensemble_prediction = xgb_prediction
+        else:
+            ensemble_prediction = (rf_weight * rf_prediction + xgb_weight * xgb_prediction) / total_weight
+        return xgb_prediction, rf_prediction, ensemble_prediction
+
     def ingest_observation(self, request: IngestObservationRequest) -> dict:
         row = self._build_live_feature_row(request)
         features = row[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
-        xgb_prediction = float(self.xgb_model.predict(features)[0])
-        rf_prediction = float(self.rf_model.predict(features)[0])
-        rf_weight = self.registry["ensemble_weights"]["random_forest"]
-        xgb_weight = self.registry["ensemble_weights"]["xgboost"]
-        ensemble_prediction = rf_weight * rf_prediction + xgb_weight * xgb_prediction
+        xgb_prediction, rf_prediction, ensemble_prediction = self._ensemble_prediction(features)
         interval_width = self._max_interval_width()
         row["predicted_utilization_1h"] = ensemble_prediction
         row["rf_predicted_utilization_1h"] = rf_prediction
@@ -764,11 +788,7 @@ class SmartParkingService:
         row["rolling_stress_3"] = row["parking_stress_index"]
 
         features = row[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
-        xgb_prediction = float(self.xgb_model.predict(features)[0])
-        rf_prediction = float(self.rf_model.predict(features)[0])
-        rf_weight = self.registry["ensemble_weights"]["random_forest"]
-        xgb_weight = self.registry["ensemble_weights"]["xgboost"]
-        ensemble_prediction = rf_weight * rf_prediction + xgb_weight * xgb_prediction
+        xgb_prediction, rf_prediction, ensemble_prediction = self._ensemble_prediction(features)
         interval_width = max(
             item for item in [
                 record.get("uncertainty_width", 0)

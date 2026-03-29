@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 
@@ -31,7 +33,12 @@ MODEL_REGISTRY_PATH = REPORTS_DIR / "model_registry.json"
 SUMMARY_JSON_PATH = REPORTS_DIR / "project_summary.json"
 SUMMARY_MD_PATH = REPORTS_DIR / "project_summary.md"
 SQLITE_DB_PATH = DB_DIR / "smart_parking.db"
-LIVE_OPS_DB_PATH = DB_DIR / "live_ops.db"
+LIVE_OPS_DB_PATH = Path(
+    os.getenv(
+        "SMART_PARKING_LIVE_OPS_DB_PATH",
+        str(Path(tempfile.gettempdir()) / "smart_parking_runtime" / "live_ops.db"),
+    )
+)
 
 XGB_MODEL_PATH = MODELS_DIR / "xgboost_pipeline.joblib"
 RF_MODEL_PATH = MODELS_DIR / "random_forest_pipeline.joblib"

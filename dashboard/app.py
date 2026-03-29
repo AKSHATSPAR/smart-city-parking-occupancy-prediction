@@ -3,7 +3,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import joblib
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -26,7 +25,6 @@ from smart_parking.config import (
     RECOMMENDATIONS_PATH,
     SQLITE_DB_PATH,
     TEST_PREDICTIONS_PATH,
-    XGB_MODEL_PATH,
 )
 from smart_parking.features import CATEGORICAL_FEATURES, NUMERIC_FEATURES
 from smart_parking.service import get_service
@@ -45,10 +43,9 @@ st.caption(
 
 
 @st.cache_data
-def load_data() -> dict[str, pd.DataFrame]:
+def load_core_data() -> dict[str, pd.DataFrame]:
     return {
         "clean": pd.read_csv(CLEAN_DATA_PATH, parse_dates=["timestamp", "time_slot"]),
-        "features": pd.read_csv(FEATURE_DATA_PATH, parse_dates=["timestamp", "time_slot", "target_time_slot"]),
         "metrics": pd.read_csv(MODEL_METRICS_PATH),
         "multi_horizon": pd.read_csv(MULTI_HORIZON_METRICS_PATH),
         "predictions": pd.read_csv(TEST_PREDICTIONS_PATH, parse_dates=["time_slot", "target_time_slot"]),
@@ -59,9 +56,9 @@ def load_data() -> dict[str, pd.DataFrame]:
     }
 
 
-@st.cache_resource
-def load_xgb_pipeline():
-    return joblib.load(XGB_MODEL_PATH)
+@st.cache_data
+def load_feature_data() -> pd.DataFrame:
+    return pd.read_csv(FEATURE_DATA_PATH, parse_dates=["timestamp", "time_slot", "target_time_slot"])
 
 
 @st.cache_resource
@@ -102,18 +99,21 @@ def live_observations_frame(service, limit: int = 25) -> pd.DataFrame:
     return live_df.head(limit).reset_index(drop=True)
 
 
-data = load_data()
-clean_df = data["clean"]
-feature_df = data["features"]
-metrics_df = data["metrics"]
-multi_horizon_df = data["multi_horizon"]
-predictions_df = data["predictions"]
-latest_df = data["latest"]
-profiles_df = data["profiles"]
-recommendations_df = data["recommendations"]
-anomalies_df = data["anomalies"]
-xgb_pipeline = load_xgb_pipeline()
-service = load_service()
+try:
+    data = load_core_data()
+    clean_df = data["clean"]
+    metrics_df = data["metrics"]
+    multi_horizon_df = data["multi_horizon"]
+    predictions_df = data["predictions"]
+    latest_df = data["latest"]
+    profiles_df = data["profiles"]
+    recommendations_df = data["recommendations"]
+    anomalies_df = data["anomalies"]
+    service = load_service()
+except Exception as exc:
+    st.error("The deployment started, but the app failed during initialization.")
+    st.exception(exc)
+    st.stop()
 
 st.sidebar.header("Control Panel")
 selected_system = st.sidebar.selectbox("Parking location", sorted(clean_df["system_code"].unique()))
@@ -576,6 +576,7 @@ with forecast_tab:
     st.plotly_chart(forecast_figure, use_container_width=True)
 
     st.subheader("What-If Next-Hour Simulation")
+    feature_df = load_feature_data()
     simulation_rows = feature_df[feature_df["system_code"] == selected_system].sort_values("time_slot")
     selected_index = st.selectbox(
         "Choose historical context",
@@ -608,7 +609,7 @@ with forecast_tab:
         + 0.1 * selected_row["capacity_pressure"]
     ).clip(0, 1)
 
-    simulation_prediction = xgb_pipeline.predict(selected_row[NUMERIC_FEATURES + CATEGORICAL_FEATURES])[0]
+    simulation_prediction = service.xgb_model.predict(selected_row[NUMERIC_FEATURES + CATEGORICAL_FEATURES])[0]
     simulation_spaces = int(round(float(selected_row["capacity"].iloc[0] * (1 - min(max(simulation_prediction, 0), 1)))))
     sim_col1, sim_col2 = st.columns(2)
     sim_col1.metric("Predicted utilization in 1 hour", f"{simulation_prediction:.2%}")
