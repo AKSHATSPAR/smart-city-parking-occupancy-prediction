@@ -1,6 +1,9 @@
 [server]
 headless = true
 runOnSave = false
+cookieSecret = "smart-city-parking-demo-review-cookie-secret-2026-03-29"
 
 [browser]
 gatherUsageStats = false
+serverAddress = "smart-city-parking-occupancy-prediction-nwovgcwwclo2v2eyrbhm2m.streamlit.app"
+serverPort = 443
