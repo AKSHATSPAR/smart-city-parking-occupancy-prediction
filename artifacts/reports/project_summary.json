@@ -1,0 +1,27 @@
+{
+  "dataset_summary": {
+    "rows": 18268,
+    "columns": 40,
+    "systems": 14,
+    "date_start": "2016-10-04T08:00:00",
+    "date_end": "2016-12-19T16:30:00",
+    "anomaly_rows": 241,
+    "avg_utilization": 0.5099472514271274,
+    "avg_queue_length": 4.600399605868185
+  },
+  "split_time": "2016-12-02T15:00:00",
+  "best_model": "XGBoost",
+  "best_rmse": 0.027170257272038853,
+  "best_mae": 0.019119235023199125,
+  "cluster_summary": {
+    "optimal_clusters": 5.0,
+    "silhouette_score": 0.2901940409864208,
+    "explained_variance_ratio_sum": 0.6407694829659041
+  },
+  "multi_horizon_best_rmse": {
+    "30 minutes": 0.016398173603807166,
+    "1 hour": 0.024794859418061664,
+    "2 hours": 0.03778799201256447
+  },
+  "top_recommendation": "BHMBCCMKT01"
+}

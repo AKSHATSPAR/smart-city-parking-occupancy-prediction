@@ -1,0 +1,17 @@
+services:
+  smart-parking-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

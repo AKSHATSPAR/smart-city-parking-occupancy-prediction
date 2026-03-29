@@ -1,0 +1,56 @@
+{
+  "train_period_end": "2016-12-02T15:00:00",
+  "reference_rows": 9363,
+  "recent_rows": 2341,
+  "features": [
+    {
+      "feature": "neighbor_utilization_mean",
+      "psi": 0.040254,
+      "drift_level": "stable",
+      "train_mean": 0.778454,
+      "recent_mean": 0.83984
+    },
+    {
+      "feature": "lag_utilization_30m",
+      "psi": 0.031605,
+      "drift_level": "stable",
+      "train_mean": 0.546285,
+      "recent_mean": 0.575645
+    },
+    {
+      "feature": "utilization",
+      "psi": 0.029344,
+      "drift_level": "stable",
+      "train_mean": 0.559249,
+      "recent_mean": 0.591658
+    },
+    {
+      "feature": "rolling_utilization_6",
+      "psi": 0.020675,
+      "drift_level": "stable",
+      "train_mean": 0.48789,
+      "recent_mean": 0.51274
+    },
+    {
+      "feature": "parking_stress_index",
+      "psi": 0.019017,
+      "drift_level": "stable",
+      "train_mean": 0.506361,
+      "recent_mean": 0.524622
+    },
+    {
+      "feature": "queue_length",
+      "psi": 0.017824,
+      "drift_level": "stable",
+      "train_mean": 5.731817,
+      "recent_mean": 5.857326
+    },
+    {
+      "feature": "capacity_pressure",
+      "psi": 0.001718,
+      "drift_level": "stable",
+      "train_mean": 0.005855,
+      "recent_mean": 0.005944
+    }
+  ]
+}

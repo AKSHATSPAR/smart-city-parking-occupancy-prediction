@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.DS_Store
+*.pyc
+*.pyo
+*.pyd
+.streamlit/secrets.toml
+docs/
+FOUNDATIONS-OF-DATA-SCIENCE (2).pdf
+review1_document.pdf
+parkingStream 2.csv
+artifacts/plots/
+artifacts/db/live_ops.db
+artifacts/reports/multi_horizon_predictions.csv
+artifacts/reports/rolling_backtest_predictions.csv
