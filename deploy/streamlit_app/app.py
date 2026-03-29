@@ -130,19 +130,48 @@ def live_observations_frame(service, limit: int = 25) -> pd.DataFrame:
     return live_df.head(limit).reset_index(drop=True)
 
 
-section = st.sidebar.radio(
-    "Section",
-    [
-        "Overview",
-        "Live Demo",
-        "Ops Wall",
-        "Forecast Lab",
-        "Recommendations",
-        "Risk & Anomalies",
-        "Spatial Intelligence",
-        "SQL Snapshot",
-    ],
-)
+SECTION_OPTIONS = [
+    "Overview",
+    "Live Demo",
+    "Ops Wall",
+    "Forecast Lab",
+    "Recommendations",
+    "Risk & Anomalies",
+    "Spatial Intelligence",
+    "SQL Snapshot",
+]
+
+
+def render_section_selector() -> str:
+    default_section = st.session_state.get("cloud_selected_section", "Overview")
+    default_section = default_section if default_section in SECTION_OPTIONS else "Overview"
+
+    st.markdown("#### Workspace")
+    if hasattr(st, "pills"):
+        section = st.pills(
+            "Workspace",
+            SECTION_OPTIONS,
+            selection_mode="single",
+            default=default_section,
+            label_visibility="collapsed",
+        )
+    else:
+        section = st.radio(
+            "Workspace",
+            SECTION_OPTIONS,
+            index=SECTION_OPTIONS.index(default_section),
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+
+    section = section or default_section
+    st.session_state["cloud_selected_section"] = section
+    st.divider()
+    return section
+
+
+section = render_section_selector()
+st.sidebar.header("Control Panel")
 system_catalog = load_system_catalog()
 selected_system = st.sidebar.selectbox("Parking location", system_catalog)
 render_map_charts = st.sidebar.toggle("Render map charts", value=True)
@@ -232,7 +261,7 @@ elif section == "Live Demo":
             st.caption(selected_scenario["description"])
             scenario_steps = st.slider("Scenario steps", min_value=1, max_value=6, value=int(selected_scenario["recommended_steps"]))
             reset_before_run = st.checkbox("Reset before run", value=True)
-            run_scenario = st.form_submit_button("Run Scenario", type="primary", use_container_width=True)
+            run_scenario = st.form_submit_button("Run Scenario", type="primary", width="stretch")
         if run_scenario:
             result = service.run_demo_scenario(
                 scenario_name=selected_scenario["name"],
@@ -255,7 +284,7 @@ elif section == "Live Demo":
             ]
             st.code("\n".join(playbook_stage_lines), language="text")
             reset_before_playbook = st.checkbox("Reset before guided demo", value=True)
-            run_playbook = st.form_submit_button("Run Guided Demo", type="primary", use_container_width=True)
+            run_playbook = st.form_submit_button("Run Guided Demo", type="primary", width="stretch")
         if run_playbook:
             result = service.run_demo_playbook(
                 playbook_name=selected_playbook["name"],
@@ -279,7 +308,7 @@ elif section == "Live Demo":
             manual_queue = st.slider("Queue length", min_value=0, max_value=30, value=max(default_queue, 0))
             manual_traffic = st.selectbox("Traffic", traffic_options, index=traffic_index)
             manual_special_day = st.checkbox("Special day", value=bool(int(selected_live_row.get("is_special_day", 0))))
-            inject_event = st.form_submit_button("Inject Custom Event", use_container_width=True)
+            inject_event = st.form_submit_button("Inject Custom Event", width="stretch")
         if inject_event:
             capacity = float(selected_live_row["capacity"])
             payload = {
@@ -299,9 +328,9 @@ elif section == "Live Demo":
             st.rerun()
 
     with action_col3:
-        if st.button("Refresh Live Board", use_container_width=True):
+        if st.button("Refresh Live Board", width="stretch"):
             st.rerun()
-        if st.button("Reset Live State", use_container_width=True):
+        if st.button("Reset Live State", width="stretch"):
             reset_result = service.reset_live_state(clear_jobs=False)
             st.session_state["cloud_last_demo_action"] = "Live state reset"
             st.session_state["cloud_last_demo_result"] = reset_result
@@ -446,7 +475,7 @@ elif section == "Ops Wall":
         st.stop()
 
     st.caption("Live operational health, alerting, drift tracking, model quality, and retraining status.")
-    if st.button("Refresh Ops Wall", key="cloud_refresh_ops_wall", use_container_width=True):
+    if st.button("Refresh Ops Wall", key="cloud_refresh_ops_wall", width="stretch"):
         st.rerun()
 
     ops_summary = service.ops_summary()
