@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: smart-parking-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /ready
+    envVars:
+      - key: SMART_PARKING_RATE_LIMIT_PER_MINUTE
+        value: 180

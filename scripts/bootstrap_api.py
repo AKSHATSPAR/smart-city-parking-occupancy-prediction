@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -19,7 +20,8 @@ def main() -> int:
         result = subprocess.run([sys.executable, "scripts/run_pipeline.py"], cwd=str(ROOT))
         if result.returncode != 0:
             return result.returncode
-    uvicorn.run("smart_parking.api:app", host="0.0.0.0", port=8000, reload=False)
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("smart_parking.api:app", host="0.0.0.0", port=port, reload=False)
     return 0
 
 

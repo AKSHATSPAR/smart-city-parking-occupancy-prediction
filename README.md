@@ -60,6 +60,30 @@ python3.12 -m venv .venv
 .venv/bin/streamlit run dashboard/app.py
 ```
 
+## Run The API Locally
+
+```bash
+.venv/bin/python scripts/run_api.py
+```
+
+Swagger docs will then be available at:
+
+- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/openapi.json`
+
+## Deploy The API
+
+The repository includes a `Dockerfile` and `render.yaml` for hosting the FastAPI backend as a separate web service. A simple way to publish the API is:
+
+1. Push the repository to GitHub.
+2. Create a new Render web service from the repository.
+3. Use the root `Dockerfile`.
+4. After deployment, open:
+   - `https://<your-service>.onrender.com/docs`
+   - `https://<your-service>.onrender.com/openapi.json`
+
+This makes the API accessible without running it from a local laptop and allows external software to consume the forecasts, recommendations, anomalies, and monitoring endpoints directly.
+
 ## Main Prediction Target
 
 The project forecasts `target_utilization_1h`, which represents the parking lot utilization ratio one hour after the current observation. This is more informative than binary occupied/empty prediction because it reflects real parking pressure across large-capacity parking locations.
