@@ -1,96 +1,171 @@
 # Smart Parking Intelligence for Indian Urban Areas
 
-This project implements an end-to-end smart parking analytics and forecasting system using the `parkingStream 2.csv` dataset. The pipeline cleans the raw parking data, engineers time-series features, trains forecasting models, generates evaluation artifacts, writes the data to SQLite for SQL-based analysis, and exposes the results through a Streamlit dashboard.
+An end-to-end data-science system for parking-demand analysis, multi-horizon occupancy forecasting, anomaly detection, and risk-aware parking recommendations.
+
+> **Project type:** Applied machine-learning and data-engineering project  
+> **Core stack:** Python, pandas, scikit-learn, XGBoost, TensorFlow/Keras, SQLite, FastAPI, Streamlit, Docker  
+> **Focus areas:** Time-series forecasting, spatial-temporal features, model comparison, APIs, dashboards, and deployment
+
+## Project Overview
+
+The project processes the `parkingStream_2.csv` dataset, corrects data-quality problems, engineers spatial and temporal features, trains multiple forecasting models, stores analytical outputs in SQLite, and exposes results through a Streamlit dashboard and FastAPI service.
+
+Unlike a simple occupied-versus-empty classifier, the primary target is future **parking utilization**, allowing the system to estimate congestion pressure across parking locations with different capacities.
 
 ## Core Highlights
 
-- Indian parking dataset with 14 parking systems and time-series utilization records.
-- Data-quality pipeline that fixes occupancy-capacity inconsistencies before modeling.
-- Spatial-temporal feature engineering with nearest-neighbor parking pressure and previous-day same-slot memory.
-- Multi-horizon forecasting for 30 minutes, 1 hour, and 2 hours ahead.
-- Calibrated uncertainty intervals for advanced forecasts.
-- Recommendation engine that ranks parking systems by availability, congestion, and risk.
-- Anomaly detection for unusual parking-demand patterns.
-- One-hour-ahead parking utilization forecasting using:
-  - Persistence baseline
-  - Random Forest
-  - XGBoost
-  - LSTM
-  - Weighted Ensemble
-- Syllabus-aligned components:
-  - Data science methodology and lifecycle
-  - Data preprocessing and EDA
-  - Time-series analytics
-  - SQL/SQLite querying
-  - Clustering and dimensionality reduction using KMeans + PCA
-  - Dashboard-based visualization
+- Parking data covering **14 parking systems** with time-series utilization records
+- Validation and correction of occupancy-versus-capacity inconsistencies
+- Spatial-temporal features using neighboring parking pressure and previous-day same-slot memory
+- Forecast horizons of **30 minutes, 1 hour, and 2 hours**
+- Calibrated uncertainty intervals for advanced forecasts
+- Risk-aware recommendation engine for ranking available parking options
+- Anomaly detection for unusual demand patterns
+- SQLite-backed analytical queries
+- Interactive Streamlit dashboard
+- FastAPI endpoints with automatically generated OpenAPI documentation
+- Docker and Render deployment configuration
 
-## Project Structure
+## Models
 
-- `data/raw/parkingStream_2.csv`: local source dataset
-- `data/processed/`: cleaned data and model-ready features
-- `artifacts/models/`: trained models
-- `artifacts/plots/`: generated charts
-- `artifacts/reports/`: metrics, forecasts, and project summaries
-- `artifacts/db/smart_parking.db`: SQLite analytics database
-- `src/smart_parking/`: reusable project modules
-- `scripts/run_pipeline.py`: main pipeline runner
-- `dashboard/app.py`: Streamlit dashboard
-- `docs/`: course-facing documentation
+The forecasting pipeline compares:
 
-## Setup
+- Persistence baseline
+- Random Forest
+- XGBoost
+- LSTM
+- Weighted ensemble
 
-Use the project virtual environment:
+The repository also includes KMeans clustering and PCA for exploratory segmentation and dimensionality reduction.
+
+## High-Level Architecture
+
+```mermaid
+flowchart LR
+    Raw[Raw Parking Data] --> Quality[Validation and Cleaning]
+    Quality --> Features[Spatial-Temporal Feature Engineering]
+    Features --> Models[RF / XGBoost / LSTM / Ensemble]
+    Models --> Reports[Metrics, Forecasts and Anomalies]
+    Reports --> DB[(SQLite)]
+    Reports --> Dashboard[Streamlit Dashboard]
+    Reports --> API[FastAPI Service]
+    API --> Clients[External Applications]
+```
+
+## Repository Structure
+
+```text
+smart-city-parking-occupancy-prediction/
+├── data/
+│   ├── raw/                         # Source parking dataset
+│   └── processed/                   # Cleaned and model-ready data
+├── artifacts/
+│   ├── models/                      # Trained model artifacts
+│   ├── plots/                       # Generated visualizations
+│   ├── reports/                     # Metrics, forecasts and recommendations
+│   └── db/smart_parking.db          # SQLite analytics database
+├── src/smart_parking/               # Reusable data and modeling modules
+├── scripts/run_pipeline.py          # Full pipeline entry point
+├── scripts/run_api.py               # FastAPI entry point
+├── dashboard/app.py                 # Streamlit dashboard
+├── docs/                            # Supporting documentation
+├── Dockerfile                       # API container image
+├── render.yaml                      # Render deployment configuration
+└── requirements.txt                 # Python dependencies
+```
+
+## Local Setup
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/AKSHATSPAR/smart-city-parking-occupancy-prediction.git
+cd smart-city-parking-occupancy-prediction
+```
+
+### 2. Create a virtual environment
+
+```bash
+python -m venv .venv
+```
+
+Activate it:
+
+**macOS/Linux**
+
+```bash
+source .venv/bin/activate
+```
+
+**Windows PowerShell**
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+### 3. Install dependencies
+
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+On macOS, XGBoost or related native dependencies may require OpenMP:
 
 ```bash
 brew install libomp
-python3.12 -m venv .venv
-.venv/bin/pip install -r requirements.txt
 ```
 
-## Run The Pipeline
+## Run the Pipeline
 
 ```bash
-.venv/bin/python scripts/run_pipeline.py
+python scripts/run_pipeline.py
 ```
 
-## Launch The Dashboard
+The pipeline prepares data, trains the configured models, evaluates forecasts, and writes outputs under `data/processed/` and `artifacts/`.
+
+## Launch the Dashboard
 
 ```bash
-.venv/bin/streamlit run dashboard/app.py
+streamlit run dashboard/app.py
 ```
 
-## Run The API Locally
+## Run the API
 
 ```bash
-.venv/bin/python scripts/run_api.py
+python scripts/run_api.py
 ```
 
-Swagger docs will then be available at:
+API documentation will be available at:
 
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/openapi.json`
 
-## Deploy The API
-
-The repository includes a `Dockerfile` and `render.yaml` for hosting the FastAPI backend as a separate web service. A simple way to publish the API is:
-
-1. Push the repository to GitHub.
-2. Create a new Render web service from the repository.
-3. Use the root `Dockerfile`.
-4. After deployment, open:
-   - `https://<your-service>.onrender.com/docs`
-   - `https://<your-service>.onrender.com/openapi.json`
-
-This makes the API accessible without running it from a local laptop and allows external software to consume the forecasts, recommendations, anomalies, and monitoring endpoints directly.
-
 ## Main Prediction Target
 
-The project forecasts `target_utilization_1h`, which represents the parking lot utilization ratio one hour after the current observation. This is more informative than binary occupied/empty prediction because it reflects real parking pressure across large-capacity parking locations.
+The primary target, `target_utilization_1h`, represents the parking-lot utilization ratio one hour after the current observation. This supports capacity-aware forecasting and is more informative than predicting only whether a facility is occupied or empty.
 
-## Advanced Outputs
+## Important Outputs
 
-- `artifacts/reports/multi_horizon_metrics.csv`: forecast performance across multiple horizons
-- `artifacts/reports/parking_recommendations.csv`: ranked parking options with risk-aware scores
-- `artifacts/reports/demand_anomalies.csv`: detected abnormal parking-demand events
-- `data/processed/spatial_neighbor_graph.csv`: nearest-neighbor graph used for spatial context
+- `artifacts/reports/multi_horizon_metrics.csv` — forecast performance across horizons
+- `artifacts/reports/parking_recommendations.csv` — risk-aware ranked parking options
+- `artifacts/reports/demand_anomalies.csv` — detected abnormal demand events
+- `data/processed/spatial_neighbor_graph.csv` — nearest-neighbor graph used for spatial context
+
+## Docker / Deployment
+
+The repository includes a `Dockerfile` and `render.yaml` for publishing the FastAPI service.
+
+A typical Render deployment flow is:
+
+1. Connect the GitHub repository to a new Render web service.
+2. Build using the root `Dockerfile`.
+3. Deploy the service.
+4. Open `https://<your-service>.onrender.com/docs` for the Swagger interface.
+
+## Limitations and Future Work
+
+- Forecast quality depends on the coverage and representativeness of the source dataset.
+- Real deployment would require continuously refreshed occupancy feeds.
+- Spatial distance and traffic-time features could improve recommendation quality.
+- Model monitoring and periodic retraining would be necessary as demand patterns change.
